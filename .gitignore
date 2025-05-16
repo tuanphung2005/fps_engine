@@ -2,3 +2,8 @@
 /out
 /include
 *.tsbuildinfo
+*.rbxl
+*.rbxlx
+*.rbxmx
+*.rbxm
+fps-engine.rbxl.lock
