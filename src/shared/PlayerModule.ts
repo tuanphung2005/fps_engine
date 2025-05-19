@@ -7,7 +7,6 @@ export class PlayerModule {
     static RunSpeed = 16;
 
     static ShiftlockKey = Enum.KeyCode.V;
-    static TorsoLerpSpeed = 0.1;
 }
 
 export class ShiftlockState {
