@@ -5,142 +5,154 @@ const RunService = game.GetService("RunService");
 const player = Players.LocalPlayer;
 const workspace = game.GetService("Workspace");
 
-const TORSO_LERP_SPEED = 0.15;
-const DIRECTION_LERP_SPEED = 0.005;
-const RANGE_OF_MOTION = math.rad(45);
-const RANGE_OF_MOTION_TORSO = math.rad(90 - 45);
-const RANGE_OF_MOTION_XZ = 45 / 140;
+let RangeOfMotion = 45;
+let RangeOfMotionTorso = 90 - RangeOfMotion;
+let RangeOfMotionXZ = RangeOfMotion / 140;
+const LerpSpeed = 0.005;
 
-let rootJointOriginalC0: CFrame;
-let neckOriginalC0: CFrame;
-let rightHipOriginalC0: CFrame;
-let leftHipOriginalC0: CFrame;
+RangeOfMotion = math.rad(RangeOfMotion);
+RangeOfMotionTorso = math.rad(RangeOfMotionTorso);
+RangeOfMotionXZ = math.rad(5)//RangeOfMotion / 200;
 
-function getYaw(cf: CFrame) {
-    const [, y] = cf.ToEulerAnglesYXZ();
-    return math.deg(y);
-}
+let RootJointOriginalC0: CFrame;
+let NeckOriginalC0: CFrame;
+let RightHipOriginalC0: CFrame;
+let LeftHipOriginalC0: CFrame;
 
-function lerpAngle(a: number, b: number, t: number) {
-    const diff = ((b - a + 180) % 360) - 180;
-    return a + diff * t;
-}
+const PlayersTable: Player[] = [];
 
-interface CharacterJoints {
-    rootJoint: Motor6D | undefined;
-    neck: Motor6D | undefined;
-    rightHip: Motor6D | undefined;
-    leftHip: Motor6D | undefined;
-}
+function Calculate(
+    dt: number,
+    HumanoidRootPart: BasePart,
+    Humanoid: Humanoid,
+    Torso: BasePart,
+) {
+    const rightHip = Torso.FindFirstChild("Right Hip") as Motor6D;
+    const leftHip = Torso.FindFirstChild("Left Hip") as Motor6D;
+    const rootJoint = HumanoidRootPart.FindFirstChild("RootJoint") as Motor6D;
+    const neck = Torso.FindFirstChild("Neck") as Motor6D;
 
-function getJoints(character: Model): CharacterJoints {
-    const joints: CharacterJoints = {
-        rootJoint: undefined,
-        neck: undefined,
-        rightHip: undefined,
-        leftHip: undefined
-    };
-
-    const humanoidRootPart = character.FindFirstChild("HumanoidRootPart") as BasePart;
-    const torso = character.FindFirstChild("Torso") as BasePart;
-
-    if (humanoidRootPart && torso) {
-        joints.rootJoint = humanoidRootPart.FindFirstChild("RootJoint") as Motor6D;
-        joints.neck = torso.FindFirstChild("Neck") as Motor6D;
-        joints.rightHip = torso.FindFirstChild("Right Hip") as Motor6D;
-        joints.leftHip = torso.FindFirstChild("Left Hip") as Motor6D;
-    }
-
-    return joints;
-}
-
-function calculateDirectionalMovement(dt: number, root: BasePart, humanoid: Humanoid, joints: CharacterJoints) {
-
-    if (!joints.rootJoint || !joints.neck || !joints.rightHip || !joints.leftHip) return;
-
-    const directionOfMovement = root.CFrame.VectorToObjectSpace(root.AssemblyLinearVelocity);
-    const normalizedDirection = new Vector3(
-        directionOfMovement.X / humanoid.WalkSpeed,
-        0,
-        directionOfMovement.Z / humanoid.WalkSpeed
-    );
-
-    const xResult = normalizedDirection.X * (RANGE_OF_MOTION - (math.abs(normalizedDirection.Z) * (RANGE_OF_MOTION / 2)));
-    const xResultTorso = normalizedDirection.X * (RANGE_OF_MOTION_TORSO - (math.abs(normalizedDirection.Z) * (RANGE_OF_MOTION_TORSO / 2)));
-    const xResultXZ = normalizedDirection.X * (RANGE_OF_MOTION_XZ - (math.abs(normalizedDirection.Z) * (RANGE_OF_MOTION_XZ / 2)));
-
-    const finalX = normalizedDirection.Z > 0.1 ? -xResult : xResult;
-    const finalXTorso = normalizedDirection.Z > 0.1 ? -xResultTorso : xResultTorso;
-    const finalXXZ = normalizedDirection.Z > 0.1 ? -xResultXZ : xResultXZ;
-
-    const rightHipResult = rightHipOriginalC0
-        .mul(new CFrame(-finalXXZ, 0, -math.abs(finalXXZ) + math.abs(-finalXXZ)))
-        .mul(CFrame.Angles(0, -finalX, 0));
-        
-    const leftHipResult = leftHipOriginalC0
-        .mul(new CFrame(-finalXXZ, 0, -math.abs(-finalXXZ) + math.abs(-finalXXZ)))
-        .mul(CFrame.Angles(0, -finalX, 0));
-        
-    const rootJointResult = rootJointOriginalC0.mul(CFrame.Angles(0, 0, -finalXTorso));
-    const neckResult = neckOriginalC0.mul(CFrame.Angles(0, 0, finalXTorso));
-
-    const lerpTime = 1 - math.pow(DIRECTION_LERP_SPEED, dt);
-    
-    joints.rightHip.C0 = joints.rightHip.C0.Lerp(rightHipResult, lerpTime);
-    joints.leftHip.C0 = joints.leftHip.C0.Lerp(leftHipResult, lerpTime);
-    joints.rootJoint.C0 = joints.rootJoint.C0.Lerp(rootJointResult, lerpTime);
-    joints.neck.C0 = joints.neck.C0.Lerp(neckResult, lerpTime);
-}
-
-function setupFancyHead(character: Model) {
-    const humanoid = character.WaitForChild("Humanoid") as Humanoid;
-    const root = character.WaitForChild("HumanoidRootPart") as BasePart;
-    const camera = workspace.CurrentCamera as Camera;
-    
-    const joints = getJoints(character);
-
-    if (!joints.rootJoint || !joints.neck || !joints.rightHip || !joints.leftHip) {
-        warn("Character doesn't have all required R6 joints");
+    if (
+        !rightHip || !leftHip || !rootJoint || !neck ||
+        !RootJointOriginalC0 || !NeckOriginalC0 || !RightHipOriginalC0 || !LeftHipOriginalC0
+    ) {
         return;
     }
-    
-    rootJointOriginalC0 = joints.rootJoint.C0;
-    neckOriginalC0 = joints.neck.C0;
-    rightHipOriginalC0 = joints.rightHip.C0;
-    leftHipOriginalC0 = joints.leftHip.C0;
 
-    let lastShiftlock = ShiftlockState.IsEnabled();
+    const directionOfMovement = HumanoidRootPart.CFrame.VectorToObjectSpace(HumanoidRootPart.AssemblyLinearVelocity);
+    const normalizedDirection = new Vector3(
+        directionOfMovement.X / Humanoid.WalkSpeed,
+        0,
+        directionOfMovement.Z / Humanoid.WalkSpeed,
+    );
 
-    RunService.RenderStepped.Connect((dt) => {
-        const shiftlock = ShiftlockState.IsEnabled();
+    let XResult = normalizedDirection.X * (RangeOfMotion - (math.abs(normalizedDirection.Z) * (RangeOfMotion / 2)));
+    let XResultTorso =
+        normalizedDirection.X *
+        (RangeOfMotionTorso - math.abs(normalizedDirection.Z) * (RangeOfMotionTorso / 2));
+    let XResultXZ =
+        normalizedDirection.X * (RangeOfMotionXZ - math.abs(normalizedDirection.Z) * (RangeOfMotionXZ / 2));
 
-        if (shiftlock !== lastShiftlock) {
-            humanoid.AutoRotate = !shiftlock;
-            lastShiftlock = shiftlock;
+    if (normalizedDirection.Z > 0.1) {
+        XResult *= -1;
+        XResultTorso *= -1;
+        XResultXZ *= -1;
+    }
 
-            if (!shiftlock) {
-                if (joints.rootJoint && joints.neck && joints.rightHip && joints.leftHip) {
-                    joints.rootJoint.C0 = rootJointOriginalC0;
-                    joints.neck.C0 = neckOriginalC0;
-                    joints.rightHip.C0 = rightHipOriginalC0;
-                    joints.leftHip.C0 = leftHipOriginalC0;
-                }
+    const RightHipResult = RightHipOriginalC0
+        .mul(new CFrame(-XResultXZ, 0, -math.abs(XResultXZ) + math.abs(-XResultXZ)))
+        .mul(CFrame.Angles(0, -XResult, 0));
+    const LeftHipResult = LeftHipOriginalC0
+        .mul(new CFrame(-XResultXZ, 0, -math.abs(-XResultXZ) + math.abs(-XResultXZ)))
+        .mul(CFrame.Angles(0, -XResult, 0));
+    const RootJointResult = RootJointOriginalC0.mul(CFrame.Angles(0, 0, -XResultTorso));
+    const NeckResult = NeckOriginalC0.mul(CFrame.Angles(0, 0, XResultTorso));
+
+    const LerpTime = 1 - LerpSpeed ** dt;
+
+    rightHip.C0 = rightHip.C0.Lerp(RightHipResult, LerpTime);
+    leftHip.C0 = leftHip.C0.Lerp(LeftHipResult, LerpTime);
+    rootJoint.C0 = rootJoint.C0.Lerp(RootJointResult, LerpTime);
+    neck.C0 = neck.C0.Lerp(NeckResult, LerpTime);
+}
+
+function setupOriginalC0s() {
+    const character = player.Character;
+    if (!character) return;
+    const humanoidRootPart = character.WaitForChild("HumanoidRootPart") as BasePart;
+    const torso = character.WaitForChild("Torso") as BasePart;
+
+    const rootJoint = humanoidRootPart.FindFirstChild("RootJoint") as Motor6D;
+    const neck = torso.FindFirstChild("Neck") as Motor6D;
+    const rightHip = torso.FindFirstChild("Right Hip") as Motor6D;
+    const leftHip = torso.FindFirstChild("Left Hip") as Motor6D;
+
+    if (!rootJoint || !neck || !rightHip || !leftHip) return;
+
+    RootJointOriginalC0 = rootJoint.C0;
+    NeckOriginalC0 = neck.C0;
+    RightHipOriginalC0 = rightHip.C0;
+    LeftHipOriginalC0 = leftHip.C0;
+}
+
+RunService.RenderStepped.Connect((dt) => {
+
+    for (const Player of Players.GetPlayers()) {
+        if (!Player.Character) continue;
+        if (PlayersTable.includes(Player)) continue;
+        PlayersTable.push(Player);
+    }
+
+
+    for (let i = PlayersTable.size() - 1; i >= 0; i--) {
+        const Player = PlayersTable[i];
+        if (!Player) {
+            PlayersTable.remove(i);
+            continue;
+        }
+        if (!Players.FindFirstChild(Player.Name)) {
+            PlayersTable.remove(i);
+            continue;
+        }
+        if (!Player.Character) {
+            PlayersTable.remove(i);
+            continue;
+        }
+        const HumanoidRootPart = Player.Character.FindFirstChild("HumanoidRootPart") as BasePart;
+        const Humanoid = Player.Character.FindFirstChild("Humanoid") as Humanoid;
+        const Torso = Player.Character.FindFirstChild("Torso") as BasePart;
+        if (!HumanoidRootPart || !Humanoid || !Torso) continue;
+
+        if (Player === player) {
+            const camera = workspace.CurrentCamera as Camera;
+            const shiftlock = ShiftlockState.IsEnabled();
+            const humanoid = Humanoid;
+
+            if (shiftlock) {
+                humanoid.AutoRotate = false;
+                const camYaw = (() => {
+                    const [, y] = camera.CFrame.ToEulerAnglesYXZ();
+                    return math.deg(y);
+                })();
+                const torsoYaw = (() => {
+                    const [, y] = HumanoidRootPart.CFrame.ToEulerAnglesYXZ();
+                    return math.deg(y);
+                })();
+                const newTorsoYaw = (() => {
+                    const diff = ((camYaw - torsoYaw + 180) % 360) - 180;
+                    return torsoYaw + diff * 0.15;
+                })();
+                HumanoidRootPart.CFrame = new CFrame(HumanoidRootPart.Position).mul(CFrame.Angles(0, math.rad(newTorsoYaw), 0));
+            } else {
+                humanoid.AutoRotate = true;
             }
         }
 
-        if (!shiftlock) return;
-
-        const camYaw = getYaw(camera.CFrame);
-        const torsoYaw = getYaw(root.CFrame);
-        const newTorsoYaw = lerpAngle(torsoYaw, camYaw, TORSO_LERP_SPEED);
-        root.CFrame = new CFrame(root.Position).mul(CFrame.Angles(0, math.rad(newTorsoYaw), 0));
-        
-        calculateDirectionalMovement(dt, root, humanoid, joints);
-    });
-}
+        Calculate(dt, HumanoidRootPart, Humanoid, Torso);
+    }
+});
 
 if (player.Character) {
-    setupFancyHead(player.Character);
+    setupOriginalC0s();
 }
-
-player.CharacterAdded.Connect(setupFancyHead);
+player.CharacterAdded.Connect(setupOriginalC0s);
