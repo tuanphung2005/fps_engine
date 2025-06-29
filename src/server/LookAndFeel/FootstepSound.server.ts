@@ -1,5 +1,5 @@
 const Players = game.GetService("Players");
-const CUSTOM_STEP_SOUND_ID = "rbxassetid://81623756670923";
+const CUSTOM_STEP_SOUND_ID = "rbxassetid://urid";
 
 function playCustomStepSound(character: Model) {
     const humanoidRootPart = character.FindFirstChild("HumanoidRootPart") as BasePart | undefined;
