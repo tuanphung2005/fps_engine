@@ -1,3 +1,4 @@
+// you can achieve same effect with forking roblox luau, or this idc
 
 const Players = game.GetService("Players");
 const RunService = game.GetService("RunService");

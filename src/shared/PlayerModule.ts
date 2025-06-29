@@ -1,10 +1,10 @@
 export class PlayerModule {
-    static WalkAnimationId = "rbxassetid://100518044227402";
-    static IdleAnimationId = "rbxassetid://122386052443389";
-    static IdleAnimationIdLong = "rbxassetid://122386052443389";
-    static RunAnimationId = "rbxassetid://102741245577948";
-    static JumpAnimationId = "rbxassetid://139010106787154";
-    static FallAnimationId = "rbxassetid://87641686430040";
+    static WalkAnimationId = "rbxassetid://urid";
+    static IdleAnimationId = "rbxassetid://urid";
+    static IdleAnimationIdLong = "rbxassetid://urid";
+    static RunAnimationId = "rbxassetid://urid";
+    static JumpAnimationId = "rbxassetid://urid";
+    static FallAnimationId = "rbxassetid://urid";
 
     static WalkSpeed = 7;
     static RunSpeed = 16;
